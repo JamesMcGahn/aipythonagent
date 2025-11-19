@@ -46,34 +46,50 @@ All paths you provide should be relative to the working directory. You do not ne
             schema_get_files_content,
         ]
     )
-    content = client.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents=messages,
-        config=types.GenerateContentConfig(
-            tools=[available_functions], system_instruction=system_prompt
-        ),
-    )
-    verbose = False
-    if "--verbose" in sys.argv:
-        verbose = True
-        print(f"User prompt: {user_prompt}")
-        print(f"Prompt tokens: {content.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {content.usage_metadata.candidates_token_count}")
+    try:
+        for _ in range(0, 4):
+            content = client.models.generate_content(
+                model="gemini-2.0-flash-001",
+                contents=messages,
+                config=types.GenerateContentConfig(
+                    tools=[available_functions], system_instruction=system_prompt
+                ),
+            )
 
-    calls = content.function_calls
-    parts_list = []
-    if calls:
-        for function_call_part in calls:
-            response = call_function(function_call_part, verbose)
-            if response and len(response.parts) > 0:
-                parts_list.append(response.parts[0].function_response.response)
-                if verbose:
-                    print(f"-> {response.parts[0].function_response.response}")
+            candidates = content.candidates
+            for can in candidates:
+                messages.append(can.content)
 
+            verbose = False
+            if "--verbose" in sys.argv:
+                verbose = True
+                print(f"User prompt: {user_prompt}")
+                print(f"Prompt tokens: {content.usage_metadata.prompt_token_count}")
+                print(
+                    f"Response tokens: {content.usage_metadata.candidates_token_count}"
+                )
+
+            calls = content.function_calls
+            parts_list = []
+            if not calls and not content.text:
+                break
+            if calls:
+                for function_call_part in calls:
+                    response = call_function(function_call_part, verbose)
+                    if response and len(response.parts) > 0:
+                        parts_list.append(response.parts[0])
+
+                        if verbose:
+                            print(f"-> {response.parts[0].function_response.response}")
+
+                    else:
+                        raise Exception("Error")
+                messages.append(types.Content(role="user", parts=parts_list))
             else:
-                raise Exception("Error")
-    else:
-        print(content.text)
+                print(content.text)
+
+    except Exception as e:
+        print(f"Error: {e}")
 
 
 if __name__ == "__main__":

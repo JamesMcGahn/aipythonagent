@@ -7,6 +7,7 @@ from functions.get_files_info import schema_get_files_info
 from functions.write_file import schema_write_file_info
 from functions.run_python_file import schema_run_python_file_info
 from functions.get_file_content import schema_get_files_content
+from functions.call_function import call_function
 
 load_dotenv()
 
@@ -52,18 +53,25 @@ All paths you provide should be relative to the working directory. You do not ne
             tools=[available_functions], system_instruction=system_prompt
         ),
     )
-
+    verbose = False
     if "--verbose" in sys.argv:
+        verbose = True
         print(f"User prompt: {user_prompt}")
         print(f"Prompt tokens: {content.usage_metadata.prompt_token_count}")
         print(f"Response tokens: {content.usage_metadata.candidates_token_count}")
 
     calls = content.function_calls
+    parts_list = []
     if calls:
         for function_call_part in calls:
-            print(
-                f"Calling function: {function_call_part.name}({function_call_part.args})"
-            )
+            response = call_function(function_call_part, verbose)
+            if response and len(response.parts) > 0:
+                parts_list.append(response.parts[0].function_response.response)
+                if verbose:
+                    print(f"-> {response.parts[0].function_response.response}")
+
+            else:
+                raise Exception("Error")
     else:
         print(content.text)
 
